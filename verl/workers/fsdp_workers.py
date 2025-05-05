@@ -16,7 +16,8 @@ The main entry point to run the PPO algorithm
 """
 
 from typing import Literal, Optional, Union
-
+import os
+import time
 import numpy as np
 import psutil
 import torch
@@ -226,9 +227,13 @@ class FSDPWorker(Worker):
                 model.visual.requires_grad_(False)
                 fsdp_config.use_orig_params = True
                 self.print_rank0("Vision tower is set to not trainable.")
+            elif hasattr(model, "vision_tower"):
+                model.vision_tower.requires_grad_(False)
+                fsdp_config.use_orig_params = True
+                self.print_rank0("Vision tower is set to not trainable.")
             else:
                 self.print_rank0("No vision tower found.")
-
+        
         dist.barrier()
         print_model_size(model)
         print_gpu_memory_usage("After huggingface model init")
@@ -281,7 +286,7 @@ class FSDPWorker(Worker):
         if self._is_actor or self._is_critic:
             if optim_config.strategy == "adamw":
                 self.optimizer = torch.optim.AdamW(
-                    filter(lambda p: p.requires_grad, self.fsdp_module.parameters()),
+                    self.fsdp_module.parameters(),
                     lr=optim_config.lr,
                     betas=optim_config.betas,
                     weight_decay=optim_config.weight_decay,
@@ -289,7 +294,7 @@ class FSDPWorker(Worker):
                 )
             elif optim_config.strategy == "adamw_bf16":
                 self.optimizer = AnyPrecisionAdamW(
-                    filter(lambda p: p.requires_grad, self.fsdp_module.parameters()),
+                    self.fsdp_module.parameters(),
                     lr=optim_config.lr,
                     betas=optim_config.betas,
                     weight_decay=optim_config.weight_decay,

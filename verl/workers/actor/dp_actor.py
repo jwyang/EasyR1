@@ -16,6 +16,7 @@ Implement Actor
 """
 
 import os
+import time
 from collections import defaultdict
 from typing import Any, Dict, Optional
 
@@ -74,8 +75,15 @@ class DataParallelPPOActor(BasePPOActor):
         multi_modal_inputs = {}
         if "multi_modal_inputs" in micro_batch:
             for key in micro_batch["multi_modal_inputs"][0].keys():
-                multi_modal_inputs[key] = torch.cat(
-                    [inputs[key] for inputs in micro_batch["multi_modal_inputs"]], dim=0
+
+                # NOTE: this is used for Qwen-VL
+                # multi_modal_inputs[key] = torch.cat(
+                #     [inputs[key] for inputs in micro_batch["multi_modal_inputs"]], dim=0
+                # )
+
+                # NOTE: this is used for Magma model
+                multi_modal_inputs[key] = torch.nn.utils.rnn.pad_sequence(
+                    [inputs[key][0] for inputs in micro_batch["multi_modal_inputs"]], batch_first=True, padding_value=0
                 )
 
         if self.config.padding_free:

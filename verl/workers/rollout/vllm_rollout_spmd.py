@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import time
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Union
 
@@ -85,6 +86,7 @@ class vLLMRollout(BaseRollout):
             disable_mm_preprocessor_cache=True,
             enable_chunked_prefill=config.enable_chunked_prefill,
             enable_sleep_mode=True,
+            **config.override_config
         )
 
         # Offload vllm model to reduce peak memory usage

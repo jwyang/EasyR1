@@ -14,6 +14,7 @@
 
 import math
 import os
+import time
 from collections import defaultdict
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Union
@@ -26,6 +27,7 @@ from PIL import Image
 from PIL.Image import Image as ImageObject
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer, ProcessorMixin
+from transformers.models.magma.processing_magma import MagmaProcessor
 
 from ..models.transformers.qwen2_vl import get_rope_index
 from . import torch_functional as VF
@@ -164,7 +166,22 @@ class RLHFDataset(Dataset, ImageProcessMixin):
         messages = self._build_messages(example)
 
         if self.image_key in example:
-            prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            if isinstance(self.processor, MagmaProcessor):
+                # magma processor has a different apply_chat_template from QWen-VL (https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct)
+                for m in messages:
+                    new_content = []
+                    for elem in m['content']:
+                        if elem['type'] == 'image':
+                            new_content.append("<image_start><image><image_end>\n\n")
+                        else:
+                            new_content.append(elem['text'])
+                    prompt = "".join(new_content)
+                    m['content'] = prompt
+                # add system prompt at the beginning of the messages
+                messages.insert(0, {"role": "system", "content": "You are agent that can see, talk and act."})
+                prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            else:
+                prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
             images = [self.process_image(image) for image in example.pop(self.image_key)]
             model_inputs = self.processor(images, [prompt], add_special_tokens=False, return_tensors="pt")
             input_ids = model_inputs.pop("input_ids")[0]
